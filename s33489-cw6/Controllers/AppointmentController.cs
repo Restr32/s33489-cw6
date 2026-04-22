@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Data;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 
 namespace s33489_cw6.Controllers;
@@ -28,5 +29,39 @@ public class AppointmentController : ControllerBase {
         
         await connection.OpenAsync();
         return Ok();
+    }
+    
+    [HttpGet("{idAppointment:int}")]
+    public async Task<IActionResult> GetDetails(int idAppointment)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await using var command = new SqlCommand("""
+                                                 SELECT a.IdAppointment, a.AppointmentDate, a.Status, a.Reason, 
+                                                        p.Email, p.Phone, d.LicenseNumber, a.InternalNotes, a.CreatedAt
+                                                 FROM dbo.Appointments a
+                                                 JOIN dbo.Patients p ON a.IdPatient = p.IdPatient
+                                                 JOIN dbo.Doctors d ON a.IdDoctor = d.IdDoctor
+                                                 WHERE a.IdAppointment = @IdAppointment;
+                                                 """, connection);
+
+        command.Parameters.Add("@IdAppointment", SqlDbType.Int).Value = idAppointment;
+
+        await connection.OpenAsync();
+        await using var reader = await command.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return Ok(new AppointmentDetailsDto{
+                IdAppointment = reader.GetInt32(0),
+                AppointmentDate = reader.GetDateTime(1),
+                Status = reader.GetString(2),
+                Reason = reader.GetString(3),
+                PatientEmail = reader.GetString(4),
+                PatientPhone = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                LicenseNumber = reader.GetString(6),
+                InternalNotes = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                CreatedAt = reader.GetDateTime(8)
+            });
+        }
+        return NotFound();
     }
 }
