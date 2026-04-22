@@ -64,4 +64,37 @@ public class AppointmentController : ControllerBase {
         }
         return NotFound();
     }
+    
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateAppointmentRequestDto dto)
+    {
+        if (dto.AppointmentDate < DateTime.Now) return BadRequest("Data nie może być w przeszłości.");
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        // Sprawdzenie konfliktu
+        await using var checkCmd = new SqlCommand("""
+                                                  SELECT COUNT(*) FROM dbo.Appointments 
+                                                  WHERE IdDoctor = @IdDoctor AND AppointmentDate = @Date AND Status = 'Scheduled';
+                                                  """, connection);
+        checkCmd.Parameters.Add("@IdDoctor", SqlDbType.Int).Value = dto.IdDoctor;
+        checkCmd.Parameters.Add("@Date", SqlDbType.DateTime).Value = dto.AppointmentDate;
+
+        var conflict = (int)await checkCmd.ExecuteScalarAsync()!;
+        if (conflict > 0) return Conflict("Lekarz ma już wizytę w tym terminie.");
+
+        await using var insertCmd = new SqlCommand("""
+                                                   INSERT INTO dbo.Appointments (IdPatient, IdDoctor, AppointmentDate, Status, Reason, CreatedAt)
+                                                   VALUES (@IdPatient, @IdDoctor, @Date, 'Scheduled', @Reason, GETDATE());
+                                                   """, connection);
+        
+        insertCmd.Parameters.Add("@IdPatient", SqlDbType.Int).Value = dto.IdPatient;
+        insertCmd.Parameters.Add("@IdDoctor", SqlDbType.Int).Value = dto.IdDoctor;
+        insertCmd.Parameters.Add("@Date", SqlDbType.DateTime).Value = dto.AppointmentDate;
+        insertCmd.Parameters.Add("@Reason", SqlDbType.NVarChar).Value = dto.Reason;
+
+        await insertCmd.ExecuteNonQueryAsync();
+        return Created("", null);
+    }
 }
