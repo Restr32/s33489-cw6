@@ -12,9 +12,10 @@ public class AppointmentController : ControllerBase {
         connectionString = conf.GetConnectionString("DefaultConnection");
     }
 
-    [HttpGet("{idAppointment:int}")]
+    [HttpGet]
     public async Task<IActionResult> GetAppointment([FromQuery] string? status, [FromQuery] string? patientLastName) {
         using var connection = new SqlConnection(connectionString);
+        var appointments = new List<AppointmentListDto>();
 
         using var cmd = new SqlCommand(@"
             SELECT a.IdAppointment, a.AppointmentDate, a.Status, a.Reason,
@@ -28,7 +29,20 @@ public class AppointmentController : ControllerBase {
         cmd.Parameters.AddWithValue("@LastName", (object?)patientLastName ?? DBNull.Value);
         
         await connection.OpenAsync();
-        return Ok();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            appointments.Add(new AppointmentListDto
+            {
+                IdAppointment = reader.GetInt32(reader.GetOrdinal("IdAppointment")),
+                AppointmentDate = reader.GetDateTime(reader.GetOrdinal("AppointmentDate")),
+                Status = reader.GetString(reader.GetOrdinal("Status")),
+                Reason = reader.GetString(reader.GetOrdinal("Reason")),
+                PatientFullName = reader.GetString(reader.GetOrdinal("PatientFullName")),
+                PatientEmail = reader.GetString(reader.GetOrdinal("PatientEmail"))
+            });
+        }
+        return Ok(appointments);
     }
     
     [HttpGet("{idAppointment:int}")]
@@ -37,7 +51,7 @@ public class AppointmentController : ControllerBase {
         await using var connection = new SqlConnection(connectionString);
         await using var command = new SqlCommand("""
                                                  SELECT a.IdAppointment, a.AppointmentDate, a.Status, a.Reason, 
-                                                        p.Email, p.Phone, d.LicenseNumber, a.InternalNotes, a.CreatedAt
+                                                        p.Email, d.LicenseNumber, a.InternalNotes, a.CreatedAt
                                                  FROM dbo.Appointments a
                                                  JOIN dbo.Patients p ON a.IdPatient = p.IdPatient
                                                  JOIN dbo.Doctors d ON a.IdDoctor = d.IdDoctor
@@ -51,15 +65,13 @@ public class AppointmentController : ControllerBase {
         if (await reader.ReadAsync())
         {
             return Ok(new AppointmentDetailsDto{
-                IdAppointment = reader.GetInt32(0),
-                AppointmentDate = reader.GetDateTime(1),
-                Status = reader.GetString(2),
-                Reason = reader.GetString(3),
-                PatientEmail = reader.GetString(4),
-                PatientPhone = reader.IsDBNull(5) ? "" : reader.GetString(5),
-                LicenseNumber = reader.GetString(6),
-                InternalNotes = reader.IsDBNull(7) ? "" : reader.GetString(7),
-                CreatedAt = reader.GetDateTime(8)
+                IdAppointment = reader.GetInt32(reader.GetOrdinal("IdAppointment")),
+                AppointmentDate = reader.GetDateTime(reader.GetOrdinal("AppointmentDate")),
+                Status = reader.GetString(reader.GetOrdinal("Status")),
+                Reason = reader.GetString(reader.GetOrdinal("Reason")),
+                PatientEmail = reader.GetString(reader.GetOrdinal("Email")),
+                InternalNotes = reader.IsDBNull(reader.GetOrdinal("InternalNotes")) ? "" : reader.GetString(reader.GetOrdinal("InternalNotes")),
+                CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
             });
         }
         return NotFound();
