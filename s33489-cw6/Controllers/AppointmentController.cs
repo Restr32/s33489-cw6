@@ -97,4 +97,29 @@ public class AppointmentController : ControllerBase {
         await insertCmd.ExecuteNonQueryAsync();
         return Created("", null);
     }
+    
+    [HttpPut("{idAppointment:int}")]
+    public async Task<IActionResult> Update(int idAppointment, UpdateAppointmentRequestDto dto)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        await using var updateCmd = new SqlCommand("""
+                                                   UPDATE dbo.Appointments 
+                                                   SET IdPatient = @IdP, IdDoctor = @IdD, AppointmentDate = @Date, 
+                                                       Status = @Status, Reason = @Reason, InternalNotes = @Notes
+                                                   WHERE IdAppointment = @Id;
+                                                   """, connection);
+
+        updateCmd.Parameters.Add("@Id", SqlDbType.Int).Value = idAppointment;
+        updateCmd.Parameters.Add("@IdP", SqlDbType.Int).Value = dto.IdPatient;
+        updateCmd.Parameters.Add("@IdD", SqlDbType.Int).Value = dto.IdDoctor;
+        updateCmd.Parameters.Add("@Date", SqlDbType.DateTime).Value = dto.AppointmentDate;
+        updateCmd.Parameters.Add("@Status", SqlDbType.NVarChar).Value = dto.Status;
+        updateCmd.Parameters.Add("@Reason", SqlDbType.NVarChar).Value = dto.Reason;
+        updateCmd.Parameters.Add("@Notes", SqlDbType.NVarChar).Value = (object?)dto.InternalNotes ?? DBNull.Value;
+
+        var rows = await updateCmd.ExecuteNonQueryAsync();
+        return rows > 0 ? Ok() : NotFound();
+    }
 }
