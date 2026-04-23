@@ -122,4 +122,19 @@ public class AppointmentController : ControllerBase {
         var rows = await updateCmd.ExecuteNonQueryAsync();
         return rows > 0 ? Ok() : NotFound();
     }
+    
+    [HttpDelete("{idAppointment:int}")]
+    public async Task<IActionResult> Delete(int idAppointment)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        await using var deleteCmd = new SqlCommand("""
+                                                   DELETE FROM dbo.Appointments WHERE IdAppointment = @Id AND Status <> 'Completed';
+                                                   """, connection);
+        deleteCmd.Parameters.Add("@Id", SqlDbType.Int).Value = idAppointment;
+
+        var rows = await deleteCmd.ExecuteNonQueryAsync();
+        return rows > 0 ? NoContent() : BadRequest("Nie znaleziono wizyty lub jest już ukończona (Completed).");
+    }
 }

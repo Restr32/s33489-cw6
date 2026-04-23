@@ -41,4 +41,8 @@ public class UpdateAppointmentRequestDto
     public string? InternalNotes { get; set; }
 }
 
-
+public class ErrorResponseDto
+{
+    public string Message { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
+}
